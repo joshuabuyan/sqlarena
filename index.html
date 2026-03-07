@@ -1,0 +1,1266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>SQL Arena</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0b0f1a;
+  --surf:#111827;
+  --surf2:#1a2235;
+  --bdr:#1e2d45;
+  --bdr2:#243350;
+  --tx:#e8edf7;
+  --mu:#5a7395;
+  --mu2:#7a93b5;
+  --a:#4f8dff;
+  --a2:#ff5f9e;
+  --a3:#00d4a0;
+  --a4:#ffb020;
+  --a5:#a78bfa;
+  --r:16px;
+  --fn:'Space Grotesk',sans-serif;
+  --mo:'JetBrains Mono',monospace;
+  --glow-a:rgba(79,141,255,.18);
+  --glow-a2:rgba(255,95,158,.15);
+  --glow-a3:rgba(0,212,160,.15);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{width:100%;height:100%;overflow:hidden;font-family:var(--fn);color:var(--tx);background:var(--bg)}
+
+/* ── PAGE TRANSITION ── */
+.scr{display:none;position:fixed;inset:0;flex-direction:column;overflow:hidden;z-index:2;opacity:0;transform:translateY(12px)}
+.scr.on{display:flex;animation:scrIn .38s cubic-bezier(.22,1,.36,1) forwards}
+.scr.out{animation:scrOut .28s cubic-bezier(.55,0,1,.45) forwards}
+@keyframes scrIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+@keyframes scrOut{from{opacity:1;transform:translateY(0)}to{opacity:0;transform:translateY(-10px)}}
+
+/* ── BACKGROUND MESH ── */
+.mesh{position:fixed;inset:0;pointer-events:none;z-index:0;overflow:hidden}
+.mesh::before{content:'';position:absolute;width:600px;height:600px;background:radial-gradient(circle,rgba(79,141,255,.07) 0%,transparent 70%);top:-200px;right:-150px;animation:mb 14s ease-in-out infinite}
+.mesh::after{content:'';position:absolute;width:500px;height:500px;background:radial-gradient(circle,rgba(255,95,158,.06) 0%,transparent 70%);bottom:-150px;left:-100px;animation:mb 18s ease-in-out infinite reverse}
+.mesh-dot{position:absolute;width:400px;height:400px;background:radial-gradient(circle,rgba(0,212,160,.05) 0%,transparent 70%);top:40%;left:30%;animation:mb 22s ease-in-out infinite 3s}
+@keyframes mb{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(20px,-24px) scale(1.08)}}
+
+/* ── GRID OVERLAY ── */
+.grid-overlay{position:fixed;inset:0;pointer-events:none;z-index:0;background-image:linear-gradient(rgba(255,255,255,.018) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.018) 1px,transparent 1px);background-size:32px 32px}
+
+/* ══════════════════════════════════
+   HOME SCREEN
+══════════════════════════════════ */
+#mSel{background:var(--bg);justify-content:center;align-items:center;padding:24px 20px;gap:0}
+
+.home-inner{display:flex;flex-direction:column;align-items:center;width:100%;max-width:360px;position:relative;z-index:1;gap:0}
+
+.logo-wrap{text-align:center;margin-bottom:28px}
+.logo-icon{
+  width:72px;height:72px;border-radius:20px;
+  background:linear-gradient(135deg,#1a2a4a,#0f1c35);
+  border:1.5px solid var(--bdr2);
+  display:inline-flex;align-items:center;justify-content:center;
+  font-size:32px;margin-bottom:12px;position:relative;
+  box-shadow:0 0 0 1px rgba(79,141,255,.08),0 8px 32px rgba(0,0,0,.4);
+  animation:floatIcon 5s ease-in-out infinite
+}
+.logo-icon::after{content:'';position:absolute;inset:-1px;border-radius:21px;background:linear-gradient(135deg,rgba(79,141,255,.2),rgba(255,95,158,.15),transparent);opacity:.5;pointer-events:none}
+@keyframes floatIcon{0%,100%{transform:translateY(0) rotate(0deg)}50%{transform:translateY(-6px) rotate(1deg)}}
+.logo-title{font-size:clamp(22px,5.5vw,28px);font-weight:700;letter-spacing:-.5px;background:linear-gradient(135deg,#e8edf7,#8bafd4);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.logo-sub{font-size:12px;color:var(--mu2);font-weight:500;margin-top:3px;letter-spacing:.3px}
+
+/* mode buttons */
+.mode-cards{display:flex;flex-direction:column;gap:10px;width:100%}
+.mcard{
+  display:flex;align-items:center;gap:14px;
+  background:var(--surf);
+  border:1.5px solid var(--bdr2);
+  border-radius:var(--r);
+  padding:16px;
+  cursor:pointer;
+  position:relative;overflow:hidden;
+  transition:transform .2s cubic-bezier(.34,1.56,.64,1),border-color .2s,box-shadow .2s;
+  box-shadow:0 2px 16px rgba(0,0,0,.25)
+}
+.mcard::before{content:'';position:absolute;inset:0;opacity:0;transition:opacity .25s}
+.mcard.idle-card::before{background:linear-gradient(135deg,var(--glow-a),transparent)}
+.mcard.quiz-card::before{background:linear-gradient(135deg,var(--glow-a2),transparent)}
+.mcard:active{transform:scale(.97)}
+.mcard:active::before{opacity:1}
+.mcard-icon{
+  width:50px;height:50px;border-radius:13px;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;font-size:24px;
+  position:relative;z-index:1;
+  box-shadow:0 4px 14px rgba(0,0,0,.3)
+}
+.idle-card .mcard-icon{background:linear-gradient(135deg,#1a3460,#112040);border:1.5px solid rgba(79,141,255,.3)}
+.quiz-card .mcard-icon{background:linear-gradient(135deg,#3a1440,#28102e);border:1.5px solid rgba(255,95,158,.3)}
+.mcard-txt{flex:1;position:relative;z-index:1}
+.mcard-txt strong{display:block;font-size:15px;font-weight:700;margin-bottom:2px}
+.mcard-txt span{font-size:11px;color:var(--mu2);font-weight:500}
+.mcard-arrow{color:var(--mu);font-size:18px;position:relative;z-index:1;transition:transform .2s}
+.mcard:active .mcard-arrow{transform:translateX(3px)}
+.mcard-badge{position:absolute;top:10px;right:38px;font-size:9px;font-weight:700;padding:2px 7px;border-radius:20px;z-index:2}
+.idle-card .mcard-badge{background:rgba(79,141,255,.15);color:var(--a);border:1px solid rgba(79,141,255,.25)}
+.quiz-card .mcard-badge{background:rgba(255,95,158,.12);color:var(--a2);border:1px solid rgba(255,95,158,.22)}
+
+/* skill snapshot on home */
+.home-skill{
+  margin-top:16px;width:100%;
+  background:var(--surf);border:1.5px solid var(--bdr2);border-radius:14px;
+  padding:12px 14px;
+  display:flex;align-items:center;gap:12px
+}
+.hs-icon{font-size:20px}
+.hs-content{flex:1;min-width:0}
+.hs-title{font-size:10px;font-weight:700;color:var(--mu2);letter-spacing:1px;text-transform:uppercase;margin-bottom:3px}
+.hs-level{font-size:14px;font-weight:700;color:var(--tx)}
+.hs-bar{height:4px;background:var(--bdr2);border-radius:4px;margin-top:5px;overflow:hidden}
+.hs-fill{height:100%;border-radius:4px;background:linear-gradient(90deg,var(--a),var(--a5));transition:width 1s cubic-bezier(.4,0,.2,1)}
+.home-footer{margin-top:12px;font-size:9.5px;color:var(--mu);font-weight:500;letter-spacing:1px;text-transform:uppercase;opacity:.6}
+
+/* ══════════════════════════════════
+   SHARED TOPBAR
+══════════════════════════════════ */
+.topbar{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:10px 13px 9px;
+  background:rgba(11,15,26,.92);
+  backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
+  border-bottom:1px solid var(--bdr);
+  flex-shrink:0;z-index:10;position:relative
+}
+.topbar::after{content:'';position:absolute;inset:0;top:auto;height:1px;background:linear-gradient(90deg,transparent,rgba(79,141,255,.2),transparent)}
+.btn-back{
+  background:var(--surf2);border:1px solid var(--bdr2);border-radius:9px;
+  padding:5px 11px;font-family:var(--fn);font-size:11px;font-weight:600;color:var(--mu2);
+  cursor:pointer;transition:all .15s;display:flex;align-items:center;gap:5px
+}
+.btn-back:active{background:var(--bdr);transform:scale(.96)}
+.topbar-title{font-size:13px;font-weight:700;color:var(--tx)}
+.btn-hint{
+  background:rgba(255,176,32,.08);border:1px solid rgba(255,176,32,.2);
+  border-radius:20px;padding:5px 10px;font-size:10px;font-weight:700;color:var(--a4);
+  cursor:pointer;transition:all .15s
+}
+.btn-hint:active{background:rgba(255,176,32,.18)}
+
+/* progress bar */
+.pbar{height:2.5px;background:var(--bdr);flex-shrink:0;position:relative;overflow:hidden}
+.pbar-fill{height:100%;background:linear-gradient(90deg,var(--a),var(--a5));transition:width .7s cubic-bezier(.4,0,.2,1);width:0%}
+.pbar::after{content:'';position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(255,255,255,.15),transparent);animation:shim 2.5s linear infinite}
+@keyframes shim{from{transform:translateX(-100%)}to{transform:translateX(100%)}  }
+
+/* ══════════════════════════════════
+   AI RIBBON
+══════════════════════════════════ */
+.ai-rib{
+  flex-shrink:0;
+  background:linear-gradient(135deg,rgba(79,141,255,.06),rgba(167,139,250,.04));
+  border-bottom:1px solid var(--bdr);
+  padding:9px 13px;
+  display:flex;align-items:flex-start;gap:10px;
+  position:relative;z-index:9;
+  overflow:hidden;
+  max-height:100px;
+  transition:max-height .35s cubic-bezier(.4,0,.2,1),padding .35s cubic-bezier(.4,0,.2,1),opacity .3s
+}
+.ai-rib.hidden{max-height:0;padding-top:0;padding-bottom:0;border-bottom:none;opacity:0}
+.ai-avatar{
+  width:34px;height:34px;border-radius:50%;flex-shrink:0;
+  background:linear-gradient(135deg,var(--a),var(--a5));
+  display:flex;align-items:center;justify-content:center;
+  font-size:16px;position:relative;
+  box-shadow:0 2px 12px rgba(79,141,255,.3);
+  animation:aipulse 3s ease-in-out infinite
+}
+@keyframes aipulse{0%,100%{box-shadow:0 2px 12px rgba(79,141,255,.3)}50%{box-shadow:0 2px 20px rgba(79,141,255,.5)}}
+.ai-msg{flex:1;min-width:0}
+.ai-header{display:flex;align-items:center;gap:6px;margin-bottom:2px}
+.ai-name{font-size:10px;font-weight:700;color:var(--a);letter-spacing:.3px}
+.ai-dots{display:inline-flex;gap:3px}
+.ai-dots span{width:4px;height:4px;border-radius:50%;background:var(--a);opacity:.35;animation:dd 1.4s ease-in-out infinite}
+.ai-dots span:nth-child(2){animation-delay:.18s}
+.ai-dots span:nth-child(3){animation-delay:.36s}
+@keyframes dd{0%,100%{transform:translateY(0);opacity:.35}50%{transform:translateY(-3px);opacity:.9}}
+.ai-text{font-size:11.5px;font-weight:500;color:var(--tx);line-height:1.55;opacity:.92;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.ai-close{background:none;border:none;font-size:18px;color:var(--mu);cursor:pointer;padding:0 3px;flex-shrink:0;align-self:flex-start;opacity:.7;transition:opacity .15s;line-height:1}
+.ai-close:active{opacity:1}
+
+/* ══════════════════════════════════
+   IDLE BODY
+══════════════════════════════════ */
+#idle{background:var(--bg)}
+.idle-body{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:10px 11px 24px;display:flex;flex-direction:column;gap:10px}
+
+/* card base */
+.card{
+  background:var(--surf);border:1px solid var(--bdr2);border-radius:var(--r);
+  overflow:hidden;flex-shrink:0;
+  box-shadow:0 4px 24px rgba(0,0,0,.25);
+  animation:cardIn .38s cubic-bezier(.34,1.56,.64,1) both
+}
+@keyframes cardIn{from{opacity:0;transform:translateY(10px) scale(.98)}to{opacity:1;transform:translateY(0) scale(1)}}
+.card:nth-child(1){animation-delay:.05s}
+.card:nth-child(2){animation-delay:.11s}
+.card:nth-child(3){animation-delay:.17s}
+.card:nth-child(4){animation-delay:.23s}
+
+.card-hd{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:9px 13px 8px;border-bottom:1px solid var(--bdr)
+}
+.card-label{font-size:9px;font-weight:700;letter-spacing:1.8px;text-transform:uppercase;display:flex;align-items:center;gap:5px}
+.card-pill{font-size:9px;font-weight:700;color:#fff;border-radius:20px;padding:2px 9px;letter-spacing:.3px}
+
+/* C1 task */
+.task-q{font-size:clamp(13px,3.2vw,15px);font-weight:600;line-height:1.55;padding:11px 13px 6px;color:var(--tx)}
+.task-ctx{font-size:clamp(10px,2.5vw,11.5px);color:var(--mu2);font-weight:500;line-height:1.55;background:var(--surf2);border-radius:9px;padding:8px 10px;margin:0 13px 11px;font-family:var(--mo);border:1px solid var(--bdr)}
+.task-meta{display:flex;align-items:center;gap:7px;padding:0 13px 10px}
+.task-role{font-size:9px;font-weight:700;color:var(--mu2);background:var(--surf2);border:1px solid var(--bdr2);padding:3px 9px;border-radius:20px;letter-spacing:.3px}
+.task-dif{display:flex;gap:3px}
+.dif-dot{width:7px;height:7px;border-radius:50%}
+
+/* C2 visual */
+.vstage{position:relative;overflow:hidden;height:clamp(110px,24vw,155px);display:flex;align-items:center;justify-content:center;background:var(--surf2)}
+.fcanv{position:absolute;inset:0;width:100%;height:100%}
+.fnode{
+  position:absolute;border-radius:10px;
+  font-size:clamp(9px,2.2vw,11px);font-weight:700;
+  display:flex;align-items:center;justify-content:center;flex-direction:column;gap:2px;
+  box-shadow:0 2px 12px rgba(0,0,0,.3);padding:5px 7px;text-align:center;
+  animation:ni .45s cubic-bezier(.34,1.56,.64,1) both;border:1.5px solid transparent
+}
+@keyframes ni{from{transform:scale(.6) translateY(10px);opacity:0}to{transform:scale(1) translateY(0);opacity:1}}
+.fnode .nn{font-size:clamp(8px,2vw,10px);font-weight:600;opacity:.85}
+.fnode .nr{font-size:clamp(7px,1.8vw,9px);opacity:.55}
+.farrow{position:absolute;font-size:clamp(11px,2.8vw,15px);color:var(--mu2);animation:ap 1.5s ease-in-out infinite;opacity:.6}
+@keyframes ap{0%,100%{opacity:.4;transform:translateX(0)}50%{opacity:.9;transform:translateX(4px)}}
+.fresult{
+  position:absolute;border-radius:10px;border:2px dashed var(--a3);
+  background:rgba(0,212,160,.06);
+  display:flex;align-items:center;justify-content:center;flex-direction:column;gap:2px;
+  font-size:clamp(9px,2.2vw,11px);font-weight:700;color:var(--a3);padding:5px;text-align:center;
+  animation:rp .55s cubic-bezier(.34,1.56,.64,1) both
+}
+@keyframes rp{from{transform:scale(.4);opacity:0}to{transform:scale(1);opacity:1}}
+.vscan{position:absolute;top:0;left:0;right:0;height:1.5px;background:linear-gradient(90deg,transparent,rgba(79,141,255,.4),transparent);animation:sc 3s linear infinite;pointer-events:none}
+@keyframes sc{from{top:0}to{top:100%}}
+.vhint{font-size:10px;color:var(--mu2);font-weight:600;text-align:center;padding:4px 12px 9px;font-style:italic}
+.vstage-idle{font-size:11px;color:var(--mu);font-weight:600;text-align:center;padding:10px}
+
+/* C3 schema */
+.tscroll{overflow-x:auto;padding:0 0 6px;max-width:100%;-webkit-overflow-scrolling:touch}
+.stbl{width:100%;border-collapse:collapse;font-family:var(--mo);font-size:clamp(9px,2.2vw,11px)}
+.stbl th{background:rgba(79,141,255,.06);color:var(--a);padding:6px 9px;text-align:left;font-size:9px;font-weight:700;letter-spacing:.5px;border-bottom:1px solid var(--bdr);white-space:nowrap}
+.stbl td{padding:5px 9px;color:var(--tx);border-bottom:1px solid var(--bdr);white-space:nowrap;font-weight:500;opacity:.88}
+.stbl tr:last-child td{border-bottom:none}
+.pk-tag{font-size:7px;background:rgba(79,141,255,.12);color:var(--a);border-radius:4px;padding:1px 4px;font-weight:700;margin-left:2px;letter-spacing:.3px}
+.stbl tr.hl td{animation:rowhl 1.2s ease}
+@keyframes rowhl{0%{background:rgba(0,212,160,.15)}100%{background:transparent}}
+
+/* C4 editor */
+.chips{display:flex;flex-wrap:wrap;gap:5px;padding:8px 12px 4px}
+.chip{
+  background:var(--surf2);border:1px solid var(--bdr2);border-radius:7px;
+  padding:4px 9px;font-family:var(--mo);font-size:clamp(9px,2.2vw,10.5px);font-weight:600;
+  color:var(--a);cursor:pointer;transition:all .15s;white-space:nowrap;
+  box-shadow:0 1px 6px rgba(0,0,0,.2)
+}
+.chip:active{background:rgba(79,141,255,.12);border-color:var(--a);transform:scale(.96)}
+.sql-editor{
+  width:100%;background:var(--surf2);border:none;border-top:1px solid var(--bdr);
+  padding:10px 12px;color:var(--tx);font-family:var(--mo);
+  font-size:clamp(11.5px,2.8vw,12.5px);line-height:1.8;resize:none;outline:none;
+  min-height:72px;display:block;caret-color:var(--a)
+}
+.sql-editor::placeholder{color:var(--mu);opacity:.6}
+.editor-actions{display:flex;gap:8px;padding:8px 12px 11px}
+.btn-run{
+  flex:1;background:linear-gradient(135deg,rgba(79,141,255,.15),rgba(167,139,250,.1));
+  border:1.5px solid rgba(79,141,255,.3);border-radius:11px;padding:10px;
+  font-family:var(--fn);font-size:clamp(12px,3vw,13px);font-weight:700;color:var(--a);
+  cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;
+  transition:all .18s;letter-spacing:.3px
+}
+.btn-run:active{transform:scale(.96);background:rgba(79,141,255,.2)}
+.btn-submit{
+  flex:1;background:linear-gradient(135deg,rgba(0,212,160,.15),rgba(0,180,130,.1));
+  border:1.5px solid rgba(0,212,160,.3);border-radius:11px;padding:10px;
+  font-family:var(--fn);font-size:clamp(12px,3vw,13px);font-weight:700;color:var(--a3);
+  cursor:pointer;transition:all .18s;letter-spacing:.3px
+}
+.btn-submit:active{transform:scale(.96);background:rgba(0,212,160,.2)}
+.result-box{margin:0 12px 10px;background:var(--surf2);border:1px solid var(--bdr2);border-radius:11px;overflow:hidden;display:none;animation:slideUp .3s cubic-bezier(.34,1.56,.64,1)}
+.result-box.on{display:block}
+@keyframes slideUp{from{transform:translateY(8px);opacity:0}to{transform:translateY(0);opacity:1}}
+.result-hdr{display:flex;align-items:center;padding:6px 10px;background:var(--surf);border-bottom:1px solid var(--bdr)}
+.res-ok{font-size:9px;font-weight:700;color:var(--a3);letter-spacing:.5px}
+.res-err{font-size:9px;font-weight:700;color:var(--a2);letter-spacing:.5px}
+.rtbl{width:100%;border-collapse:collapse;font-family:var(--mo);font-size:clamp(9px,2.2vw,10.5px)}
+.rtbl th{background:rgba(79,141,255,.05);color:var(--a);padding:4px 8px;text-align:left;font-size:9px;font-weight:700;white-space:nowrap;letter-spacing:.4px}
+.rtbl td{padding:4px 8px;color:var(--tx);border-top:1px solid var(--bdr);font-weight:500;white-space:nowrap;opacity:.88}
+.rtbl tr.nr td{animation:rowhl 1.1s ease}
+
+/* ══════════════════════════════════
+   QUIZ SCREEN
+══════════════════════════════════ */
+#quiz{background:var(--bg)}
+.quiz-ctr{font-size:13px;font-weight:700;color:var(--mu2)}
+.quiz-ctr span{color:var(--a)}
+.quiz-pts{background:rgba(79,141,255,.1);border:1px solid rgba(79,141,255,.2);border-radius:20px;padding:4px 12px;font-size:12px;font-weight:700;color:var(--a)}
+.quiz-body{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:13px 12px 26px}
+.q-category{display:inline-flex;align-items:center;gap:5px;font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--a2);background:rgba(255,95,158,.1);border-radius:20px;padding:3px 10px;margin-bottom:9px;border:1px solid rgba(255,95,158,.18)}
+.q-difficulty{display:inline-flex;align-items:center;gap:4px;font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;border-radius:20px;padding:3px 10px;margin-bottom:9px;margin-left:5px}
+.q-diff-beginner{color:#00d4a0;background:rgba(0,212,160,.08);border:1px solid rgba(0,212,160,.18)}
+.q-diff-intermediate{color:#ffb020;background:rgba(255,176,32,.08);border:1px solid rgba(255,176,32,.18)}
+.q-diff-advanced{color:#ff5f9e;background:rgba(255,95,158,.08);border:1px solid rgba(255,95,158,.18)}
+.q-card{
+  background:var(--surf);border:1px solid var(--bdr2);border-radius:var(--r);
+  padding:15px 14px 12px;box-shadow:0 4px 24px rgba(0,0,0,.25);margin-bottom:12px;
+  position:relative;overflow:hidden;
+  animation:cardIn .38s cubic-bezier(.34,1.56,.64,1)
+}
+.q-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--a2),var(--a))}
+.q-num{font-size:10px;font-weight:600;color:var(--mu2);margin-bottom:6px;letter-spacing:.5px}
+.q-text{font-size:clamp(14px,3.6vw,16px);font-weight:700;line-height:1.55;color:var(--tx)}
+.q-code{font-family:var(--mo);background:var(--surf2);border:1px solid var(--bdr2);border-radius:8px;padding:10px 12px;margin-top:10px;font-size:clamp(10px,2.5vw,12px);color:var(--a5);line-height:1.7;white-space:pre-wrap;word-break:break-all}
+.q-opts{display:flex;flex-direction:column;gap:9px;margin-bottom:12px}
+.q-opt{
+  background:var(--surf);border:1.5px solid var(--bdr2);border-radius:13px;
+  padding:11px 13px;cursor:pointer;
+  transition:all .2s cubic-bezier(.34,1.56,.64,1);
+  display:flex;align-items:flex-start;gap:11px;
+  box-shadow:0 2px 12px rgba(0,0,0,.2)
+}
+.q-opt:active:not([disabled]){transform:scale(.98)}
+.opt-label{
+  width:28px;height:28px;border-radius:8px;flex-shrink:0;
+  background:var(--surf2);border:1.5px solid var(--bdr2);
+  display:flex;align-items:center;justify-content:center;
+  font-size:11px;font-weight:700;color:var(--mu2);
+  transition:all .2s
+}
+.opt-text{font-size:clamp(12px,3vw,13.5px);font-weight:600;line-height:1.5;flex:1;padding-top:3px;color:var(--tx)}
+.q-opt.correct{border-color:var(--a3);background:rgba(0,212,160,.06)}
+.q-opt.correct .opt-label{background:var(--a3);border-color:var(--a3);color:#000;font-size:14px}
+.q-opt.wrong{border-color:var(--a2);background:rgba(255,95,158,.06)}
+.q-opt.wrong .opt-label{background:var(--a2);border-color:var(--a2);color:#fff;font-size:14px}
+.q-feedback{border-radius:13px;padding:13px 14px;margin-bottom:12px;display:none;animation:slideUp .3s cubic-bezier(.34,1.56,.64,1)}
+.q-feedback.on{display:block}
+.q-feedback.correct{background:rgba(0,212,160,.08);border:1.5px solid rgba(0,212,160,.22)}
+.q-feedback.wrong{background:rgba(255,95,158,.07);border:1.5px solid rgba(255,95,158,.18)}
+.fb-head{font-size:13px;font-weight:700;margin-bottom:5px}
+.fb-head.c{color:var(--a3)}.fb-head.w{color:var(--a2)}
+.fb-body{font-size:clamp(11px,2.8vw,12px);font-weight:500;line-height:1.65;color:var(--tx);opacity:.88}
+.fb-correct{margin-top:8px;font-size:11px;color:var(--mu2);font-weight:600;font-family:var(--mo);background:var(--surf2);border-radius:8px;padding:7px 9px;border:1px solid var(--bdr)}
+.btn-next{
+  width:100%;background:linear-gradient(135deg,var(--a),var(--a5));
+  border:none;border-radius:13px;padding:14px;
+  font-family:var(--fn);font-size:clamp(13px,3.5vw,14px);font-weight:700;color:#fff;
+  cursor:pointer;display:none;
+  box-shadow:0 4px 20px rgba(79,141,255,.25);
+  transition:transform .18s,box-shadow .18s;letter-spacing:.3px
+}
+.btn-next.on{display:block;animation:slideUp .3s cubic-bezier(.34,1.56,.64,1)}
+.btn-next:active{transform:scale(.97);box-shadow:0 2px 12px rgba(79,141,255,.2)}
+
+/* quiz results */
+.result-card{
+  background:var(--surf);border:1px solid var(--bdr2);border-radius:var(--r);
+  padding:clamp(18px,5vh,26px) clamp(15px,4vw,22px);
+  box-shadow:0 4px 24px rgba(0,0,0,.3);text-align:center;
+  display:none;animation:cardIn .5s cubic-bezier(.34,1.56,.64,1)
+}
+.result-card.on{display:block}
+.res-trophy{font-size:clamp(44px,12vw,56px);animation:trophyIn .6s cubic-bezier(.34,1.56,.64,1) .15s both;display:block}
+@keyframes trophyIn{from{transform:scale(0) rotate(-25deg)}to{transform:scale(1) rotate(0)}}
+.res-grade{font-size:clamp(36px,9vw,44px);font-weight:700;color:var(--a);margin:4px 0}
+.res-title{font-size:clamp(10px,2.8vw,12px);font-weight:700;color:var(--mu2);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:16px}
+.res-stats{display:flex;gap:8px;justify-content:center;margin-bottom:14px}
+.res-stat{background:var(--surf2);border:1px solid var(--bdr2);border-radius:12px;padding:10px clamp(12px,3.5vw,18px);text-align:center}
+.res-val{font-size:clamp(17px,4.5vw,22px);font-weight:700;color:var(--a)}
+.res-lbl{font-size:9px;color:var(--mu2);font-weight:600;margin-top:2px;letter-spacing:.5px}
+
+/* skill assessment on results */
+.skill-assess{
+  margin:10px 0 14px;background:var(--surf2);border:1px solid var(--bdr2);border-radius:12px;
+  padding:12px 14px;text-align:left
+}
+.sa-title{font-size:10px;font-weight:700;color:var(--mu2);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px}
+.sa-level{font-size:18px;font-weight:700;color:var(--tx);margin-bottom:3px}
+.sa-desc{font-size:11px;color:var(--mu2);font-weight:500;line-height:1.55;margin-bottom:8px}
+.sa-bars{display:flex;flex-direction:column;gap:5px}
+.sa-bar-row{display:flex;align-items:center;gap:8px}
+.sa-bar-label{font-size:9.5px;font-weight:600;color:var(--mu2);width:65px;flex-shrink:0}
+.sa-bar-track{flex:1;height:4px;background:var(--bdr2);border-radius:4px;overflow:hidden}
+.sa-bar-fill{height:100%;border-radius:4px;transition:width 1.2s cubic-bezier(.4,0,.2,1) .3s}
+.res-comment{font-size:clamp(11.5px,3vw,13px);font-weight:500;line-height:1.65;margin-bottom:16px;color:var(--tx);opacity:.85}
+.btn-again{width:100%;background:linear-gradient(135deg,var(--a2),var(--a));border:none;border-radius:13px;padding:13px;font-family:var(--fn);font-size:clamp(12px,3.5vw,14px);font-weight:700;color:#fff;cursor:pointer;margin-bottom:8px;box-shadow:0 4px 18px rgba(255,95,158,.2);transition:transform .15s}
+.btn-again:active{transform:scale(.97)}
+.btn-menu{width:100%;background:var(--surf2);border:1px solid var(--bdr2);border-radius:13px;padding:12px;font-family:var(--fn);font-size:clamp(11.5px,3vw,13px);font-weight:600;color:var(--mu2);cursor:pointer;transition:all .15s}
+.btn-menu:active{background:var(--bdr)}
+
+/* tg-report button */
+.btn-tg{
+  width:100%;background:linear-gradient(135deg,rgba(79,141,255,.15),rgba(167,139,250,.12));
+  border:1.5px solid rgba(79,141,255,.25);border-radius:13px;padding:11px;
+  font-family:var(--fn);font-size:clamp(11.5px,3vw,13px);font-weight:700;color:var(--a);
+  cursor:pointer;margin-bottom:8px;transition:all .15s;display:flex;align-items:center;justify-content:center;gap:7px
+}
+.btn-tg:active{transform:scale(.97)}
+
+/* ══════════════════════════════════
+   TOAST
+══════════════════════════════════ */
+.toast{
+  position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(80px);
+  background:rgba(17,24,39,.97);color:var(--tx);border-radius:22px;
+  padding:9px 18px;font-size:12px;font-weight:600;z-index:999;
+  transition:transform .35s cubic-bezier(.34,1.56,.64,1);white-space:nowrap;
+  box-shadow:0 4px 24px rgba(0,0,0,.4);pointer-events:none;
+  border:1px solid var(--bdr2);backdrop-filter:blur(12px)
+}
+.toast.on{transform:translateX(-50%) translateY(0)}
+
+/* ══════════════════════════════════
+   LOADING SKELETON
+══════════════════════════════════ */
+.skel{background:linear-gradient(90deg,var(--surf2) 25%,rgba(255,255,255,.04) 50%,var(--surf2) 75%);background-size:200% 100%;animation:skelAnim 1.5s linear infinite;border-radius:6px;height:14px;margin:3px 0}
+@keyframes skelAnim{from{background-position:200% 0}to{background-position:-200% 0}}
+
+/* Level badge in topbar */
+.lv-badge{background:rgba(79,141,255,.1);border:1px solid rgba(79,141,255,.2);border-radius:20px;padding:3px 9px;font-size:10px;font-weight:700;color:var(--a)}
+</style>
+</head>
+<body>
+<div class="mesh"><div class="mesh-dot"></div></div>
+<div class="grid-overlay"></div>
+
+<!-- ══ HOME SCREEN ══ -->
+<div id="mSel" class="scr on">
+  <div class="home-inner">
+    <div class="logo-wrap">
+      <div class="logo-icon">🗄️</div>
+      <div class="logo-title">SQL Arena</div>
+      <div class="logo-sub" id="wName">AI-powered SQL training ground</div>
+    </div>
+
+    <div class="mode-cards" style="width:100%;max-width:360px">
+      <div class="mcard idle-card" onclick="openIdle()">
+        <span class="mcard-badge">WRITE SQL</span>
+        <div class="mcard-icon">💻</div>
+        <div class="mcard-txt">
+          <strong>SQL IDLE</strong>
+          <span>Real queries · AI tasks · Visual feedback</span>
+        </div>
+        <div class="mcard-arrow">›</div>
+      </div>
+      <div class="mcard quiz-card" onclick="openQuiz()">
+        <span class="mcard-badge">MCQ</span>
+        <div class="mcard-icon">🧠</div>
+        <div class="mcard-txt">
+          <strong>SQL QUIZ</strong>
+          <span>Adaptive MCQ · Theory · Skill assessment</span>
+        </div>
+        <div class="mcard-arrow">›</div>
+      </div>
+    </div>
+
+    <div class="home-skill" id="homeSkill" style="max-width:360px">
+      <div class="hs-icon">📊</div>
+      <div class="hs-content">
+        <div class="hs-title">Current Level</div>
+        <div class="hs-level" id="hsLevel">Loading...</div>
+        <div class="hs-bar"><div class="hs-fill" id="hsFill" style="width:0%"></div></div>
+      </div>
+    </div>
+    <div class="home-footer">✦ omni-context engine v10.0 ✦</div>
+  </div>
+</div>
+
+<!-- ══ IDLE SCREEN ══ -->
+<div id="idle" class="scr">
+  <div class="topbar">
+    <button class="btn-back" onclick="goHome()">← Menu</button>
+    <div class="topbar-title">SQL IDLE 💻</div>
+    <button class="btn-hint" onclick="showHint()">💡 Hint</button>
+  </div>
+  <div class="pbar"><div class="pbar-fill" id="ipf"></div></div>
+  <div class="ai-rib hidden" id="aiRib">
+    <div class="ai-avatar">🤖</div>
+    <div class="ai-msg">
+      <div class="ai-header">
+        <span class="ai-name" id="aiNm">SQL AI</span>
+        <div class="ai-dots" id="aiDts"><span></span><span></span><span></span></div>
+      </div>
+      <div class="ai-text" id="aiTxt">Preparing your task...</div>
+    </div>
+    <button class="ai-close" onclick="hideRib()">×</button>
+  </div>
+  <div class="idle-body">
+    <!-- C1 TASK -->
+    <div class="card">
+      <div class="card-hd">
+        <span class="card-label" style="color:var(--a)">📋 Task</span>
+        <div style="display:flex;align-items:center;gap:7px">
+          <span class="task-role" id="roleL">—</span>
+          <div class="task-dif" id="dDots"></div>
+        </div>
+      </div>
+      <div class="task-q" id="tQ">Loading your task...</div>
+      <div class="task-ctx" id="tCtx">—</div>
+      <div class="task-meta" id="tMeta"></div>
+    </div>
+
+    <!-- C2 VISUAL -->
+    <div class="card">
+      <div class="card-hd">
+        <span class="card-label" style="color:var(--a3)">⚡ Query Visualiser</span>
+        <span class="card-pill" style="background:linear-gradient(135deg,#00b37a,#00d4a0)" id="vMd">IDLE</span>
+      </div>
+      <div class="vstage" id="vStage">
+        <div class="fcanv" id="fCanv">
+          <span class="vstage-idle">Run a query to see the animation ✨</span>
+        </div>
+        <div class="vscan"></div>
+      </div>
+      <div class="vhint" id="vHint"></div>
+    </div>
+
+    <!-- C3 TABLE -->
+    <div class="card">
+      <div class="card-hd">
+        <span class="card-label" style="color:var(--a4)">📊 Schema</span>
+        <span class="card-pill" style="background:linear-gradient(135deg,#d4820a,#ffb020)" id="tblN">table</span>
+      </div>
+      <div class="tscroll"><table class="stbl" id="sTbl"></table></div>
+    </div>
+
+    <!-- C4 EDITOR -->
+    <div class="card">
+      <div class="card-hd">
+        <span class="card-label" style="color:var(--a5)">⌨️ SQL Editor</span>
+        <span id="edSt" style="font-size:10px;color:var(--mu2);font-weight:600;letter-spacing:.3px">Ready</span>
+      </div>
+      <div class="chips" id="chips"></div>
+      <textarea class="sql-editor" id="sqled" rows="3" spellcheck="false" placeholder="SELECT * FROM employees;"></textarea>
+      <div class="editor-actions">
+        <button class="btn-run" onclick="runQ()">▶ Run</button>
+        <button class="btn-submit" onclick="submitT()">✓ Submit</button>
+      </div>
+      <div class="result-box" id="rBox"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ QUIZ SCREEN ══ -->
+<div id="quiz" class="scr">
+  <div class="topbar">
+    <button class="btn-back" onclick="goHome()">← Menu</button>
+    <div class="quiz-ctr">Q <span id="qCur">1</span>/<span id="qTot">10</span></div>
+    <div class="quiz-pts" id="qSc">0 pts</div>
+  </div>
+  <div class="pbar"><div class="pbar-fill" id="qPf" style="width:0%"></div></div>
+  <div class="quiz-body" id="qBody"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ─── TELEGRAM ─── */
+const TG=window.Telegram?.WebApp;
+let U={name:'friend',uname:'',id:0};
+try{
+  if(TG){TG.ready();TG.expand();}
+  const u=TG?.initDataUnsafe?.user;
+  if(u){U.name=u.first_name||'friend';U.uname=u.username?'@'+u.username:'';U.id=u.id||0;}
+}catch(e){}
+
+/* welcome */
+const greetEl=document.getElementById('wName');
+const gName=U.uname||U.name;
+if(gName!=='friend') greetEl.textContent=`Hey ${gName} 👋 Let's train!`;
+
+/* ─── CONFIG ─── */
+const CFG=window.__SQL_ARENA_CONFIG__||{};
+const GK=CFG.groqKey||'', GMK=CFG.geminiKey||'', MK=CFG.mistralKey||'', CK=CFG.cerebrasKey||'';
+
+/* ─── TOAST ─── */
+let toastT=null;
+function toast(m,d=2800){
+  const t=document.getElementById('toast');t.textContent=m;t.classList.add('on');
+  clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove('on'),d);
+}
+
+/* ─── SCREEN TRANSITION ─── */
+let curScr='mSel';
+function show(id){
+  const old=document.getElementById(curScr);
+  if(old&&old.id!==id){
+    old.classList.add('out');
+    setTimeout(()=>{old.classList.remove('on','out');},260);
+  }
+  const next=document.getElementById(id);
+  next.style.display='flex';
+  requestAnimationFrame(()=>{next.classList.add('on');});
+  curScr=id;
+}
+function goHome(){
+  hideRib();
+  show('mSel');
+  refreshHomeSkill();
+}
+
+/* ─── USER PROFILE ─── */
+let P={lv:1,xp:0,done:0,hist:[],quizHistory:[],topicScores:{},totalIdleScore:0,totalQuizScore:0,sessions:0};
+try{
+  const s=JSON.parse(localStorage.getItem('sqla_v10')||'{}');
+  if(s.lv)P={...P,...s};
+}catch(e){}
+function saveP(){try{localStorage.setItem('sqla_v10',JSON.stringify(P));}catch(e){}}
+
+/* ─── HOME SKILL DISPLAY ─── */
+const LEVEL_THRESHOLDS=[
+  {xp:0,label:'Entry Level',sub:'SQL Beginner',pct:0},
+  {xp:100,label:'Junior SQL Developer',sub:'Growing skills',pct:20},
+  {xp:300,label:'SQL Developer',sub:'Solid fundamentals',pct:45},
+  {xp:650,label:'Mid-Level SQL Dev',sub:'Strong practitioner',pct:70},
+  {xp:1200,label:'Senior SQL Developer',sub:'Advanced mastery',pct:90},
+  {xp:2500,label:'SQL Architect',sub:'Expert level',pct:100}
+];
+function getLevelInfo(){
+  let cur=LEVEL_THRESHOLDS[0],next=LEVEL_THRESHOLDS[1];
+  for(let i=0;i<LEVEL_THRESHOLDS.length;i++){
+    if(P.xp>=LEVEL_THRESHOLDS[i].xp){cur=LEVEL_THRESHOLDS[i];next=LEVEL_THRESHOLDS[i+1]||LEVEL_THRESHOLDS[LEVEL_THRESHOLDS.length-1];}
+  }
+  const range=next.xp-cur.xp;const prog=range>0?Math.min(100,Math.round(((P.xp-cur.xp)/range)*100)):100;
+  return {label:cur.label,sub:cur.sub,pct:prog,xp:P.xp,nextXp:next.xp};
+}
+function refreshHomeSkill(){
+  const li=getLevelInfo();
+  document.getElementById('hsLevel').textContent=li.label;
+  setTimeout(()=>document.getElementById('hsFill').style.width=li.pct+'%',200);
+}
+refreshHomeSkill();
+
+/* ─── AI NAMES ─── */
+const AI_NAMES=['Groq · Llama3','Gemini · Flash','Mistral AI','Cerebras','SQL AI'];
+let ribTimer=null;
+function showRib(msg,thinking=false){
+  const rib=document.getElementById('aiRib');
+  const dts=document.getElementById('aiDts');
+  const txt=document.getElementById('aiTxt');
+  document.getElementById('aiNm').textContent=IS.aiLabel||'SQL AI';
+  dts.style.display=thinking?'inline-flex':'none';
+  txt.textContent=msg;
+  rib.classList.remove('hidden');
+  clearTimeout(ribTimer);
+  if(!thinking)ribTimer=setTimeout(()=>hideRib(),9000);
+}
+function hideRib(){document.getElementById('aiRib').classList.add('hidden');clearTimeout(ribTimer);}
+function setThinking(){showRib('Analyzing your level and preparing the perfect task...',true);}
+
+/* ─── QUESTION TRACKING (no repeats) ─── */
+function getSeenIds(mode){
+  try{return new Set(JSON.parse(localStorage.getItem('sqla_seen_'+mode)||'[]'));}catch(e){return new Set();}
+}
+function markSeen(mode,id){
+  const s=getSeenIds(mode);s.add(id);
+  try{localStorage.setItem('sqla_seen_'+mode,JSON.stringify([...s]));}catch(e){}
+}
+
+/* ─── AI API (multi-provider chain) ─── */
+async function callAI(prompt,maxTok=1400){
+  /* 1. Groq */
+  if(GK){try{
+    const r=await fetch('https://api.groq.com/openai/v1/chat/completions',{
+      method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+GK},
+      body:JSON.stringify({model:'llama3-70b-8192',messages:[{role:'user',content:prompt}],temperature:.85,max_tokens:maxTok})
+    });
+    const d=await r.json();const t=(d.choices?.[0]?.message?.content||'').replace(/```json|```/g,'').trim();
+    const j=extractJSON(t);if(j)return j;
+  }catch(e){console.warn('Groq fail',e);}}
+  /* 2. Gemini */
+  if(GMK){try{
+    const r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GMK}`,{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({contents:[{parts:[{text:prompt}]}],generationConfig:{temperature:.85,maxOutputTokens:maxTok}})
+    });
+    const d=await r.json();const t=(d.candidates?.[0]?.content?.parts?.[0]?.text||'').replace(/```json|```/g,'').trim();
+    const j=extractJSON(t);if(j)return j;
+  }catch(e){console.warn('Gemini fail',e);}}
+  /* 3. Mistral */
+  if(MK){try{
+    const r=await fetch('https://api.mistral.ai/v1/chat/completions',{
+      method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+MK},
+      body:JSON.stringify({model:'mistral-small-latest',messages:[{role:'user',content:prompt}],temperature:.85,max_tokens:maxTok})
+    });
+    const d=await r.json();const t=(d.choices?.[0]?.message?.content||'').replace(/```json|```/g,'').trim();
+    const j=extractJSON(t);if(j)return j;
+  }catch(e){console.warn('Mistral fail',e);}}
+  return null;
+}
+function extractJSON(t){
+  const s=Math.max(t.indexOf('{'),t.indexOf('['));
+  const e=Math.max(t.lastIndexOf('}')+1,t.lastIndexOf(']')+1);
+  if(s>=0&&e>s){try{return JSON.parse(t.slice(s,e));}catch(e){}}
+  return null;
+}
+
+/* ─── SCHEMAS ─── */
+const SC={
+  employees:{label:'employees',
+    cols:[{n:'emp_id',t:'INT',pk:1},{n:'first_name',t:'VARCHAR'},{n:'last_name',t:'VARCHAR'},{n:'department',t:'VARCHAR'},{n:'salary',t:'DECIMAL'},{n:'hire_date',t:'DATE'},{n:'manager_id',t:'INT'}],
+    data:[{emp_id:1,first_name:'Alice',last_name:'Wong',department:'Engineering',salary:95000,hire_date:'2019-03-15',manager_id:null},{emp_id:2,first_name:'Bob',last_name:'Santos',department:'Marketing',salary:72000,hire_date:'2020-07-01',manager_id:1},{emp_id:3,first_name:'Clara',last_name:'Kim',department:'Engineering',salary:88000,hire_date:'2021-01-20',manager_id:1},{emp_id:4,first_name:'David',last_name:'Reyes',department:'HR',salary:65000,hire_date:'2018-11-05',manager_id:1},{emp_id:5,first_name:'Eva',last_name:'Tan',department:'Engineering',salary:102000,hire_date:'2017-06-30',manager_id:null},{emp_id:6,first_name:'Frank',last_name:'Lee',department:'Marketing',salary:68000,hire_date:'2022-03-10',manager_id:2}]},
+  orders:{label:'orders',
+    cols:[{n:'order_id',t:'INT',pk:1},{n:'customer_name',t:'VARCHAR'},{n:'product',t:'VARCHAR'},{n:'quantity',t:'INT'},{n:'unit_price',t:'DECIMAL'},{n:'order_date',t:'DATE'},{n:'status',t:'VARCHAR'}],
+    data:[{order_id:101,customer_name:'Acme Corp',product:'Laptop',quantity:5,unit_price:1200,order_date:'2024-01-10',status:'Delivered'},{order_id:102,customer_name:'Beta LLC',product:'Monitor',quantity:10,unit_price:350,order_date:'2024-01-15',status:'Shipped'},{order_id:103,customer_name:'Acme Corp',product:'Keyboard',quantity:20,unit_price:80,order_date:'2024-02-01',status:'Delivered'},{order_id:104,customer_name:'Gamma Inc',product:'Laptop',quantity:2,unit_price:1200,order_date:'2024-02-10',status:'Pending'},{order_id:105,customer_name:'Beta LLC',product:'Mouse',quantity:15,unit_price:40,order_date:'2024-03-01',status:'Delivered'}]},
+  sales:{label:'sales',
+    cols:[{n:'sale_id',t:'INT',pk:1},{n:'rep_name',t:'VARCHAR'},{n:'region',t:'VARCHAR'},{n:'product',t:'VARCHAR'},{n:'amount',t:'DECIMAL'},{n:'sale_date',t:'DATE'},{n:'quarter',t:'INT'}],
+    data:[{sale_id:1,rep_name:'Maria',region:'North',product:'CRM',amount:45000,sale_date:'2024-01-12',quarter:1},{sale_id:2,rep_name:'James',region:'South',product:'BI Dashboard',amount:32000,sale_date:'2024-01-20',quarter:1},{sale_id:3,rep_name:'Maria',region:'North',product:'BI Dashboard',amount:28000,sale_date:'2024-02-05',quarter:1},{sale_id:4,rep_name:'Anna',region:'East',product:'CRM',amount:51000,sale_date:'2024-04-18',quarter:2},{sale_id:5,rep_name:'James',region:'South',product:'CRM',amount:39000,sale_date:'2024-05-22',quarter:2}]}
+};
+
+/* ─── STATIC IDLE TASKS (fallback, with unique IDs) ─── */
+const ST=[
+  {id:'st1',role:'Data Analyst',dif:1,sc:'employees',q:'Find all employees in the Engineering department.',ctx:'Your manager needs a headcount list of engineers. Return all columns.',hint:"WHERE department = 'Engineering'",kw:['select','from','employees','where','engineering'],chips:['SELECT *','FROM employees','WHERE','department =']},
+  {id:'st2',role:'Reporting Analyst',dif:1,sc:'employees',q:'List every unique department name — no duplicates.',ctx:'HR wants a clean list of all departments in the system.',hint:'DISTINCT removes duplicate values.',kw:['distinct','department','employees'],chips:['SELECT DISTINCT','department','FROM employees']},
+  {id:'st3',role:'Data Analyst',dif:1,sc:'orders',q:"Show all orders with status 'Delivered'.",ctx:'Operations needs all completed delivery records.',hint:"WHERE status = 'Delivered'",kw:['select','from','orders','where','delivered'],chips:['SELECT *','FROM orders','WHERE status =']},
+  {id:'st4',role:'BI Analyst',dif:2,sc:'employees',q:'Average salary per department, sorted highest to lowest.',ctx:'Finance needs a department salary summary for Q2 budget planning.',hint:'GROUP BY department, AVG(salary), ORDER BY DESC',kw:['avg','salary','group by','department','order by'],chips:['SELECT department','AVG(salary)','GROUP BY','ORDER BY DESC']},
+  {id:'st5',role:'SQL Developer',dif:2,sc:'orders',q:'Total revenue (quantity × unit_price) per customer.',ctx:'Sales wants a revenue breakdown report by customer.',hint:'SUM(quantity * unit_price), GROUP BY customer_name',kw:['sum','quantity','unit_price','group by','customer'],chips:['SUM(quantity * unit_price)','GROUP BY','customer_name']},
+  {id:'st6',role:'BI Developer',dif:2,sc:'sales',q:'Total sales amount per region for Q1 only (quarter = 1).',ctx:'Quarterly regional performance report for the leadership dashboard.',hint:'WHERE quarter = 1, GROUP BY region, SUM(amount)',kw:['sum','amount','group by','region','where','quarter'],chips:['SUM(amount)','GROUP BY region','WHERE quarter = 1']},
+  {id:'st7',role:'Data Engineer',dif:3,sc:'employees',q:'List employees who earn more than the average salary of their own department.',ctx:'HR wants to identify above-average earners per team for the bonus review.',hint:'Correlated subquery: WHERE salary > (SELECT AVG(salary) FROM employees e2 WHERE e2.department = e1.department)',kw:['avg','salary','where','department'],chips:['WHERE salary >','(SELECT AVG(salary)','WHERE department =']},
+  {id:'st8',role:'Analytics Manager',dif:3,sc:'sales',q:'Rank each sales rep by total amount using a window function.',ctx:'Annual leaderboard: reps ordered by total revenue.',hint:'RANK() OVER (ORDER BY SUM(amount) DESC) with GROUP BY',kw:['rank','over','order by','sum','amount'],chips:['RANK() OVER','SUM(amount)','ORDER BY','GROUP BY rep_name']},
+  {id:'st9',role:'SQL Developer',dif:2,sc:'employees',q:"Find all employees hired before 2020, sorted by hire_date ascending.",ctx:'Payroll team needs a seniority list of employees hired before 2020.',hint:"WHERE hire_date < '2020-01-01' ORDER BY hire_date ASC",kw:['where','hire_date','order by'],chips:['WHERE hire_date <','ORDER BY hire_date ASC']},
+  {id:'st10',role:'Data Analyst',dif:1,sc:'orders',q:"Count how many orders are in 'Pending' status.",ctx:"Management wants to know the backlog size — count pending orders.",hint:"SELECT COUNT(*) FROM orders WHERE status = 'Pending'",kw:['count','where','pending'],chips:['SELECT COUNT(*)','WHERE status =']},
+];
+
+/* ─── ADAPTIVE TASK SELECTION ─── */
+function pickDifficulty(){
+  const xp=P.xp;
+  if(xp<80)return 1;
+  if(xp<400)return Math.random()<.7?2:1;
+  return Math.random()<.5?3:2;
+}
+
+/* ─── IDLE STATE ─── */
+let IS={task:null,schema:null,sName:'',result:null,aiLabel:AI_NAMES[0]};
+
+function openIdle(){
+  IS.aiLabel=AI_NAMES[~~(Math.random()*AI_NAMES.length)];
+  document.getElementById('aiNm').textContent=IS.aiLabel;
+  show('idle');
+  setThinking();
+  loadTask();
+}
+
+async function loadTask(){
+  document.getElementById('tQ').textContent='⏳ Preparing your task...';
+  document.getElementById('tCtx').textContent='—';
+  document.getElementById('rBox').classList.remove('on');
+  document.getElementById('sqled').value='';
+  document.getElementById('vHint').textContent='';
+  IS.result=null; resetVis();
+
+  const dif=pickDifficulty();
+  const diff=dif===1?'beginner':dif===2?'intermediate':'advanced';
+  const roles=['Data Analyst','BI Analyst','SQL Developer','Reporting Analyst','Data Engineer','BI Developer','Analytics Manager','Power BI Developer'];
+  const role=roles[~~(Math.random()*roles.length)];
+  const sks=Object.keys(SC);const sn=sks[~~(Math.random()*sks.length)];
+  const cols=SC[sn].cols.map(c=>c.n).join(', ');
+  const seenTasks=getSeenIds('idle');
+  const seenArr=[...seenTasks].slice(-20).join('","');
+  const li=getLevelInfo();
+
+  let task=null;
+
+  if(GK||GMK||MK){
+    const pr=`You are an expert SQL training AI. The student's profile:
+- XP: ${P.xp}, Level: "${li.label}", Tasks done: ${P.done}
+- Difficulty needed: ${diff} (level ${dif}/3)
+
+Generate ONE unique ${diff} SQL task for the role: "${role}".
+Table: "${sn}", columns: [${cols}].
+
+IMPORTANT rules:
+1. Task must be realistic — like a real job ticket or actual interview question from platforms like LeetCode, HackerRank, StrataScratch, or Mode Analytics.
+2. Task must be solvable using ONLY the columns listed above.
+3. Make the question text different and fresh — vary the wording, scenario, and SQL concept tested.
+4. For beginners: SELECT/WHERE/ORDER BY. For intermediate: GROUP BY/aggregates/subqueries. For advanced: window functions/CTEs/correlated subqueries.
+5. Do NOT repeat these recently seen task concepts: ["${seenArr}"]
+
+Return ONLY valid JSON (no markdown, no extra text):
+{"role":"${role}","dif":${dif},"sc":"${sn}","q":"<task question>","ctx":"<1 sentence business context>","hint":"<specific SQL hint>","kw":["select","from","..."],"chips":["SELECT","FROM ${sn}","..."]}`;
+
+    const res=await callAI(pr,1200);
+    if(res?.q){
+      task={...res,id:'ai_'+Date.now(),role:res.role||role,dif:res.dif||dif,sc:sn};
+    }
+  }
+
+  if(!task){
+    const pool=ST.filter(t=>t.dif===dif&&!seenTasks.has(t.id));
+    const fallback=pool.length?pool:ST.filter(t=>t.dif<=dif);
+    task=fallback[~~(Math.random()*fallback.length)]||ST[~~(Math.random()*ST.length)];
+  }
+
+  markSeen('idle',task.id||task.q);
+  IS.task=task; IS.sName=task.sc; IS.schema=SC[task.sc]||SC.employees;
+  renderTask(task); renderSchema(IS.schema); renderChips(task.chips||[]); updProg();
+  setTimeout(()=>showRib(cTask(task)),400);
+}
+
+function renderTask(t){
+  document.getElementById('tQ').textContent=t.q;
+  document.getElementById('tCtx').textContent=t.ctx||'—';
+  document.getElementById('roleL').textContent=t.role||'Analyst';
+  document.getElementById('tblN').textContent=t.sc;
+  const dc=document.getElementById('dDots'); dc.innerHTML='';
+  const cs=['#00d4a0','#ffb020','#ff5f9e'];
+  for(let i=0;i<3;i++){
+    const d=document.createElement('div');d.className='dif-dot';
+    d.style.background=i<t.dif?cs[t.dif-1]:'var(--bdr2)';
+    dc.appendChild(d);
+  }
+}
+
+function renderSchema(sc){
+  const tbl=document.getElementById('sTbl');
+  let h='<thead><tr>';
+  sc.cols.forEach(c=>h+=`<th>${c.n}${c.pk?'<span class="pk-tag">PK</span>':''}<br><span style="opacity:.45;font-size:7px">${c.t}</span></th>`);
+  h+='</tr></thead><tbody>';
+  sc.data.slice(0,4).forEach(row=>{h+='<tr>';sc.cols.forEach(c=>h+=`<td>${row[c.n]??'—'}</td>`);h+='</tr>';});
+  h+='</tbody>'; tbl.innerHTML=h;
+}
+function renderChips(arr){
+  document.getElementById('chips').innerHTML=arr.map(c=>`<button class="chip" onclick="insChip(${JSON.stringify(c)})">${c}</button>`).join('');
+}
+function insChip(t){
+  const ed=document.getElementById('sqled');const p=ed.selectionStart,v=ed.value;
+  ed.value=v.slice(0,p)+t+' '+v.slice(p);ed.focus();ed.selectionStart=ed.selectionEnd=p+t.length+1;
+}
+function updProg(){document.getElementById('ipf').style.width=Math.min(100,(P.xp%200)/2)+'%';}
+function showHint(){
+  const t=IS.task;if(!t)return;
+  const h=t.hint||t.kw?.join(', ')||'Think about which SQL clauses you need!';
+  document.getElementById('vHint').textContent='💡 '+h;
+  showRib('💡 Hint: '+h);
+}
+
+/* ─── AI COMMENTS ─── */
+function cTask(t){return [`This is a typical ${t.role} task — real companies ask exactly this.`,`As a ${t.role}, you'd see challenges like this in your first sprint.`,`Tip: ${t.hint}`,`Check the schema below — it'll guide your query. You've got this! ✨`,`Difficulty: ${['','⭐ Beginner','⭐⭐ Intermediate','⭐⭐⭐ Advanced'][t.dif]||''}. Think step by step.`][~~(Math.random()*5)];}
+function cRun(n){return [`You got ${n} row(s). Does that match the task? 🔍`,`${n} results returned. Review carefully before submitting.`,`Nice run! ${n} row(s). If it looks good, hit Submit ✓`,`Query ran — ${n} result(s). Cross-check with the task description 👇`][~~(Math.random()*4)];}
+function cOk(){const n=U.uname||U.name;return [`Excellent, ${n}! That's the correct approach ⭐`,`Perfect! A real ${IS.task?.role||'analyst'} would approve that query 🏆`,`Nailed it, ${n}! Next one will be harder 😄`,`Correct! You're building real SQL instincts 💡`][~~(Math.random()*4)];}
+function cPart(){return [`Almost! Check all required clauses. Hint: ${IS.task?.hint||''}`,`Good attempt! Refine your query — review the task context 🧐`,`You're close! A small tweak and it'll be perfect.`][~~(Math.random()*3)];}
+function cErr(e){return `Hmm, syntax issue: "${e}". Check spelling and clause order 🛠️`;}
+
+/* ─── RUN QUERY ─── */
+function runQ(){
+  const sql=document.getElementById('sqled').value.trim();
+  if(!sql){toast('✏️ Write a query first');return;}
+  document.getElementById('edSt').textContent='⏳ Running...';
+  setTimeout(()=>{
+    let res={cols:[],rows:[],error:null};
+    try{res=simSQL(sql.toLowerCase(),IS.schema);}catch(e){res.error=e.message;}
+    renderRes(res); animFlow(sql.toLowerCase(),res);
+    document.getElementById('edSt').textContent=res.error?'❌ Error':`✅ ${res.rows.length} row(s)`;
+    showRib(res.error?cErr(res.error):cRun(res.rows.length));
+    IS.result=res;
+  },300);
+}
+
+/* ─── SUBMIT ─── */
+function submitT(){
+  const sql=document.getElementById('sqled').value.trim();
+  if(!sql){toast('✏️ Write your SQL first');return;}
+  const t=IS.task;if(!t)return;
+  const kws=t.kw||[];
+  const m=kws.filter(k=>sql.toLowerCase().includes(k.toLowerCase())).length;
+  const sc=kws.length?Math.round((m/kws.length)*100):55;
+  let gained=0;
+  if(sc>=80){
+    showRib(cOk());toast('🎉 Correct! +30 XP',3000);
+    gained=30;P.xp+=30;P.done++;
+    P.totalIdleScore=(P.totalIdleScore||0)+100;
+    updateTopicScore(t.sc,100);
+  } else if(sc>=50){
+    showRib(cPart());toast('✅ Good try! +15 XP',2800);
+    gained=15;P.xp+=15;P.done++;
+    P.totalIdleScore=(P.totalIdleScore||0)+65;
+    updateTopicScore(t.sc,65);
+  } else {
+    showRib('💡 Hint: '+t.hint);toast('💡 Try again — check the hint!',3000);
+    P.totalIdleScore=(P.totalIdleScore||0)+20;
+    updateTopicScore(t.sc,20);
+  }
+  P.hist.push({q:t.q,sc,ts:Date.now(),dif:t.dif,gained});
+  saveP();updProg();refreshHomeSkill();
+  if(sc>=50)setTimeout(()=>{setThinking();loadTask();},3400);
+}
+
+function updateTopicScore(topic,score){
+  if(!P.topicScores)P.topicScores={};
+  if(!P.topicScores[topic])P.topicScores[topic]={total:0,count:0};
+  P.topicScores[topic].total+=score;
+  P.topicScores[topic].count++;
+}
+
+/* ─── SQL SIMULATOR ─── */
+function simSQL(sql,sc){
+  let data=[...sc.data];
+  const cols=sc.cols.map(c=>c.n);
+  const wm=sql.match(/where\s+(.+?)(?:\s+group\s+by|\s+order\s+by|\s+having|\s+limit|$)/);
+  if(wm)data=data.filter(r=>ew(wm[1].trim(),r));
+  const gm=sql.match(/group\s+by\s+([\w,\s]+?)(?:\s+having|\s+order\s+by|\s+limit|$)/);
+  if(gm){
+    const gc=gm[1].split(',').map(s=>s.trim());
+    const gr={};
+    data.forEach(r=>{const k=gc.map(g=>r[g]).join('|');if(!gr[k])gr[k]=[];gr[k].push(r);});
+    const sr=sql.match(/select\s+(.*?)\s+from/)?.[1]||'*';
+    data=Object.values(gr).map(rows=>{
+      const ar={};gc.forEach(g=>ar[g]=rows[0][g]);
+      (sr.match(/(avg|sum|count|max|min)\((\w+|\*)\)(?:\s+as\s+(\w+))?/gi)||[]).forEach(fn=>{
+        const m2=fn.match(/(avg|sum|count|max|min)\((\w+|\*)\)(?:\s+as\s+(\w+))?/i);if(!m2)return;
+        const f=m2[1].toLowerCase(),col=m2[2],al=m2[3]||`${f}(${col})`;
+        const v=rows.map(r=>parseFloat(r[col])||0);
+        ar[al]=f==='avg'?+(v.reduce((a,b)=>a+b,0)/v.length).toFixed(2):f==='sum'?+(v.reduce((a,b)=>a+b,0)).toFixed(2):f==='count'?rows.length:f==='max'?Math.max(...v):Math.min(...v);
+      });return ar;
+    });
+  }
+  const om=sql.match(/order\s+by\s+([\w().]+)(?:\s+(asc|desc))?/);
+  if(om){const c=om[1],dir=om[2]||'asc';data.sort((a,b)=>dir==='asc'?(a[c]>b[c]?1:-1):(a[c]<b[c]?1:-1));}
+  if(sql.includes('distinct')){const s=new Set();data=data.filter(r=>{const k=JSON.stringify(r);if(s.has(k))return false;s.add(k);return true;});}
+  const lm=sql.match(/limit\s+(\d+)/);if(lm)data=data.slice(0,+lm[1]);
+  const sm=sql.match(/select\s+(.*?)\s+from/);
+  let fc=Object.keys(data[0]||{});
+  if(sm){
+    const raw=sm[1].trim();
+    if(raw!=='*'){fc=raw.split(',').map(s=>{s=s.trim();const a=s.match(/(?:.*?)\s+as\s+(\w+)/i);if(a)return a[1];const f=s.match(/(avg|sum|count|max|min)\((\w+|\*)\)(?:\s+as\s+(\w+))?/i);if(f)return f[3]||`${f[1].toLowerCase()}(${f[2]})`;return s;});}
+    else fc=Object.keys(data[0]||cols.reduce((o,c)=>({...o,[c]:''}),{}));
+  }
+  return{cols:fc,rows:data.map(r=>fc.map(c=>r[c]!==undefined?r[c]:'—'))};
+}
+function ew(cl,row){
+  const es=cl.match(/(\w+)\s*=\s*'([^']*)'/i);if(es)return String(row[es[1]]||'').toLowerCase()===es[2].toLowerCase();
+  const en=cl.match(/(\w+)\s*=\s*(\d+)/i);if(en)return Number(row[en[1]])===Number(en[2]);
+  const gt=cl.match(/(\w+)\s*>\s*(\d+)/i);if(gt)return Number(row[gt[1]])>Number(gt[2]);
+  const lt=cl.match(/(\w+)\s*<\s*(\d+)/i);if(lt)return Number(row[lt[1]])<Number(lt[2]);
+  const gte=cl.match(/(\w+)\s*>=\s*(\d+)/i);if(gte)return Number(row[gte[1]])>=Number(gte[2]);
+  const lte=cl.match(/(\w+)\s*<=\s*(\d+)/i);if(lte)return Number(row[lte[1]])<=Number(lte[2]);
+  const lk=cl.match(/(\w+)\s+like\s+'([^']*)'/i);if(lk){const p=lk[2].replace(/%/g,'.*').replace(/_/g,'.');return new RegExp(p,'i').test(String(row[lk[1]]||''));}
+  const ne=cl.match(/(\w+)\s*!=\s*'([^']*)'/i);if(ne)return String(row[ne[1]]||'').toLowerCase()!==ne[2].toLowerCase();
+  return true;
+}
+
+function renderRes(r){
+  const b=document.getElementById('rBox');
+  if(r.error){b.innerHTML=`<div class="result-hdr"><span class="res-err">❌ ${r.error}</span></div>`;}
+  else if(!r.rows.length){b.innerHTML=`<div class="result-hdr"><span class="res-ok">✅ 0 rows returned</span></div>`;}
+  else{
+    let h=`<div class="result-hdr"><span class="res-ok">✅ ${r.rows.length} row(s) returned</span></div><div style="overflow-x:auto"><table class="rtbl"><thead><tr>`;
+    r.cols.forEach(c=>h+=`<th>${c}</th>`);h+='</tr></thead><tbody>';
+    r.rows.forEach((row,i)=>{h+=`<tr class="nr" style="animation-delay:${i*.06}s">`;row.forEach(v=>h+=`<td>${v}</td>`);h+='</tr>';});
+    h+='</tbody></table></div>';b.innerHTML=h;
+  }
+  b.classList.add('on');
+}
+
+/* ─── VISUAL FLOW ─── */
+function resetVis(){
+  document.getElementById('vMd').textContent='IDLE';
+  document.getElementById('fCanv').innerHTML='<span class="vstage-idle">Run a query to see the animation ✨</span>';
+}
+function animFlow(sql,result){
+  const cv=document.getElementById('fCanv');
+  const vm=document.getElementById('vMd');
+  const vs=document.getElementById('vStage');
+  const W=vs.offsetWidth||300,H=vs.offsetHeight||130;
+  const isJ=sql.includes('join'),isG=sql.includes('group by'),isW=sql.includes('where'),isA=/(avg|sum|count|max|min)/.test(sql);
+  let mode='SELECT';
+  if(isJ)mode='JOIN';else if(isG&&isA)mode='AGGREGATE';else if(isW)mode='FILTER';
+  vm.textContent=mode;
+  const total=IS.schema?.data?.length||0;
+  const nc=result.rows.length;
+  const pw=p=>Math.round(p*W/100)+'px';
+  const ph=p=>Math.round(p*H/100)+'px';
+  const nw=30;
+  function nd(emoji,label,sub,l,t,w,bg,col,delay=0){return `<div class="fnode" style="left:${pw(l)};top:${ph(t)};width:${pw(w)};min-height:${ph(40)};background:${bg};border-color:${col};color:${col};animation-delay:${delay}s">${emoji}<span class="nn">${label}</span>${sub?`<span class="nr">${sub}</span>`:''}</div>`;}
+  function ar(l,t,delay=0){return `<div class="farrow" style="left:${pw(l)};top:${ph(t)};animation-delay:${delay}s">→</div>`;}
+  function rn(label,sub,l,t,w){return `<div class="fresult" style="left:${pw(l)};top:${ph(t)};width:${pw(w)};min-height:${ph(40)}"><span style="font-size:14px">✅</span><span>${label}</span>${sub?`<span style="font-size:8px;opacity:.6">${sub}</span>`:''}</div>`;}
+  let html='';
+  if(isJ){html+=nd('📋',IS.sName,total+'r',2,8,nw,'rgba(79,141,255,.08)','var(--a)')+ar(33,40)+nd('📋','Table B','match',36,8,nw,'rgba(255,95,158,.08)','var(--a2)',0.15)+ar(67,40,0.3)+rn(nc+' rows','JOIN',70,8,28)+`<div class="fnode" style="left:${pw(36)};bottom:4px;width:${pw(28)};height:26px;background:rgba(0,212,160,.07);border:1.5px solid var(--a3);color:var(--a3);animation-delay:.35s;flex-direction:row;gap:4px;font-size:10px">⟶ JOIN</div>`;}
+  else if(isG&&isA){html+=nd('📊',IS.sName,total+'r',2,8,nw,'rgba(79,141,255,.07)','var(--a)')+ar(33,42)+nd('🔀','GROUP BY','split',36,8,nw,'rgba(0,212,160,.07)','var(--a3)',0.18)+ar(67,42,0.3)+nd('∑','Aggregate',nc+' grp',70,8,28,'rgba(255,176,32,.08)','var(--a4)',0.36);}
+  else if(isW){html+=nd('📋',IS.sName,total+'r',2,10,nw,'rgba(79,141,255,.07)','var(--a)')+ar(33,43)+nd('🔍','WHERE','filter',36,10,nw,'rgba(255,95,158,.07)','var(--a2)',0.2)+ar(67,43,0.32)+rn(nc+'/'+total,'matched',70,10,28);}
+  else{html+=nd('📋',IS.sName,'all',5,12,38,'rgba(91,200,245,.07)','var(--a5)')+ar(44,43,0)+rn(nc+' rows','selected',50,12,44);}
+  cv.innerHTML=html;
+  const trs=document.querySelectorAll('#sTbl tbody tr');
+  trs.forEach((r,i)=>{if(i<nc){setTimeout(()=>{r.classList.add('hl');setTimeout(()=>r.classList.remove('hl'),1300);},i*100);}});
+}
+
+/* ══════════════════════════════════
+   QUIZ SYSTEM — ADAPTIVE AI-POWERED
+══════════════════════════════════ */
+
+/* ─── EXPANDED STATIC Q BANK (no repeats via tracking) ─── */
+const QS=[
+  {id:'q1',cat:'SQL Basics',dif:1,topic:'select',q:'Which SQL command retrieves data from a table?',o:['INSERT','UPDATE','SELECT','FETCH'],c:2,e:'SELECT is the primary SQL DML command for retrieving data.'},
+  {id:'q2',cat:'SQL Basics',dif:1,topic:'where',q:'Which clause filters rows in a SELECT statement?',o:['HAVING','ORDER BY','WHERE','GROUP BY'],c:2,e:'WHERE filters individual rows before any grouping occurs.'},
+  {id:'q3',cat:'SQL Basics',dif:1,topic:'order',q:'Which keyword sorts query results?',o:['SORT BY','ORDER BY','ARRANGE BY','GROUP BY'],c:1,e:'ORDER BY sorts result sets. Use ASC (default) or DESC.'},
+  {id:'q4',cat:'Joins',dif:1,topic:'joins',q:'INNER JOIN returns…',o:['All rows from left table','All rows from both tables','Only rows with matching values in both tables','Only unmatched rows'],c:2,e:'INNER JOIN returns only rows where the join condition is TRUE in both tables.'},
+  {id:'q5',cat:'Joins',dif:2,topic:'joins',q:'Which JOIN returns ALL rows from both tables, with NULLs where no match?',o:['INNER JOIN','LEFT JOIN','RIGHT JOIN','FULL OUTER JOIN'],c:3,e:'FULL OUTER JOIN returns every row from both tables. Unmatched rows get NULLs.'},
+  {id:'q6',cat:'Aggregates',dif:1,topic:'aggregates',q:'Which function counts non-NULL values?',o:['SUM()','AVG()','COUNT()','TOTAL()'],c:2,e:'COUNT(column) counts non-NULL values; COUNT(*) counts all rows including NULLs.'},
+  {id:'q7',cat:'Aggregates',dif:2,topic:'aggregates',q:'Which clause filters rows AFTER grouping?',o:['WHERE','FILTER','HAVING','ORDER BY'],c:2,e:'HAVING filters groups produced by GROUP BY. WHERE filters rows before grouping.'},
+  {id:'q8',cat:'RDBMS',dif:1,topic:'rdbms',q:'What does RDBMS stand for?',o:['Relational Database Management System','Remote Database Messaging System','Real-time Data Management System','Relational Data Manipulation Service'],c:0,e:'RDBMS = Relational Database Management System — organises data into related tables.'},
+  {id:'q9',cat:'RDBMS',dif:1,topic:'rdbms',q:'What is a PRIMARY KEY?',o:['A nullable column','A column uniquely identifying each row','A self-referencing FK','An auto-increment column'],c:1,e:'A PRIMARY KEY uniquely identifies each row. It cannot be NULL and must be unique.'},
+  {id:'q10',cat:'RDBMS',dif:2,topic:'rdbms',q:'What is a FOREIGN KEY?',o:['Encrypts data','References the PK of another table','A unique non-null column','A secondary index'],c:1,e:'A FOREIGN KEY references the PRIMARY KEY of another table, enforcing referential integrity.'},
+  {id:'q11',cat:'DML',dif:1,topic:'dml',q:'Key difference between DELETE and TRUNCATE?',o:['No difference','DELETE is row-by-row with WHERE; TRUNCATE removes all rows instantly','TRUNCATE targets databases','DELETE is faster'],c:1,e:'DELETE is DML — supports WHERE, can be rolled back. TRUNCATE is DDL — removes all rows, harder to roll back.'},
+  {id:'q12',cat:'Transactions',dif:2,topic:'transactions',q:'ACID stands for…',o:['Atomicity, Consistency, Isolation, Durability','Accuracy, Consistency, Integrity, Durability','Atomicity, Correctness, Isolation, Dependency','Atomicity, Consistency, Isolation, Data-integrity'],c:0,e:'ACID = Atomicity, Consistency, Isolation, Durability — the four pillars of reliable transactions.'},
+  {id:'q13',cat:'Window Functions',dif:3,topic:'window',q:'Which function gives each row a unique sequential number in a partition?',o:['RANK()','DENSE_RANK()','ROW_NUMBER()','NTILE()'],c:2,e:'ROW_NUMBER() assigns a unique gapless number per row. RANK() can have gaps for ties; DENSE_RANK() does not.'},
+  {id:'q14',cat:'Normalization',dif:2,topic:'normalization',q:'Which Normal Form eliminates partial dependencies?',o:['1NF','2NF','3NF','BCNF'],c:1,e:'2NF eliminates partial dependencies — every non-key attribute must depend on the WHOLE primary key.'},
+  {id:'q15',cat:'Normalization',dif:1,topic:'normalization',q:'What does 1NF require?',o:['No duplicates, atomic values','Foreign key references','No transitive dependencies','All integers'],c:0,e:'1NF: all column values are atomic (indivisible) and each row is unique.'},
+  {id:'q16',cat:'Subqueries',dif:3,topic:'subqueries',q:'A subquery that runs independently of the outer query is called…',o:['Correlated','Scalar','Non-correlated','Inline view'],c:2,e:'Non-correlated: runs once, passes result to outer query. Correlated: runs once per outer row.'},
+  {id:'q17',cat:'History',dif:1,topic:'history',q:'In what year was SQL first developed at IBM?',o:['1970','1974','1986','1992'],c:1,e:'SQL was developed by Chamberlin & Boyce at IBM in 1974, originally called SEQUEL.'},
+  {id:'q18',cat:'History',dif:1,topic:'history',q:'Which company first marketed a commercial SQL RDBMS?',o:['Microsoft','Oracle (Relational Software Inc.)','IBM','Sybase'],c:1,e:'Oracle (then Relational Software Inc.) launched the first commercial SQL DB in 1979.'},
+  {id:'q19',cat:'Indexes',dif:2,topic:'indexes',q:'Which index enforces uniqueness on column values?',o:['Composite Index','Clustered Index','Unique Index','Full-Text Index'],c:2,e:'A UNIQUE index ensures no two rows share the same value(s) in the indexed column(s).'},
+  {id:'q20',cat:'SQL Order',dif:2,topic:'clauses',q:'Correct written order of a SELECT statement?',o:['FROM → WHERE → SELECT → GROUP BY → HAVING → ORDER BY','SELECT → FROM → WHERE → GROUP BY → HAVING → ORDER BY','SELECT → WHERE → FROM → GROUP BY → HAVING → ORDER BY','FROM → SELECT → WHERE → GROUP BY → ORDER BY → HAVING'],c:1,e:'Written: SELECT, FROM, WHERE, GROUP BY, HAVING, ORDER BY. Execution order differs.'},
+  {id:'q21',cat:'CTEs',dif:3,topic:'cte',q:'What does CTE stand for in SQL?',o:['Common Table Expression','Correlated Table Entity','Column Type Expression','Computed Table Entry'],c:0,e:'CTE = Common Table Expression. Defined with WITH, it creates a named temporary result set.'},
+  {id:'q22',cat:'Window Functions',dif:3,topic:'window',q:'What does PARTITION BY do in a window function?',o:['Splits the table into separate physical tables','Divides rows into groups for the window calculation','Filters rows like WHERE','Sorts the entire result set'],c:1,e:'PARTITION BY divides rows into groups (partitions) for the window function to calculate over.'},
+  {id:'q23',cat:'Joins',dif:2,topic:'joins',q:'A LEFT JOIN returns…',o:['Only matching rows','All rows from the right table plus matches','All rows from the left table, NULLs for non-matches','All rows from both tables'],c:2,e:'LEFT JOIN returns ALL rows from the left table plus matching rows from the right; NULLs for non-matches.'},
+  {id:'q24',cat:'SQL Basics',dif:1,topic:'distinct',q:'Which keyword removes duplicate rows from results?',o:['UNIQUE','NODUPLICATE','DISTINCT','EXCLUDE'],c:2,e:'DISTINCT eliminates duplicate rows from the SELECT result set.'},
+  {id:'q25',cat:'Aggregates',dif:2,topic:'aggregates',q:'What does GROUP BY do?',o:['Sorts rows alphabetically','Groups rows with the same values together for aggregation','Filters groups like HAVING','Joins two tables together'],c:1,e:'GROUP BY groups rows that have the same values in specified columns so aggregate functions can be applied.'},
+  {id:'q26',cat:'Transactions',dif:3,topic:'transactions',q:'Which statement saves a transaction permanently?',o:['SAVE','PERSIST','COMMIT','FINALIZE'],c:2,e:'COMMIT permanently saves all changes made in the current transaction to the database.'},
+  {id:'q27',cat:'Transactions',dif:3,topic:'transactions',q:'Which statement undoes uncommitted changes in a transaction?',o:['UNDO','REVERT','ROLLBACK','CANCEL'],c:2,e:'ROLLBACK undoes all changes made in the current transaction since the last COMMIT or SAVEPOINT.'},
+  {id:'q28',cat:'Normalization',dif:3,topic:'normalization',q:'3NF requires the elimination of…',o:['Partial dependencies','Multivalued dependencies','Transitive dependencies','Join dependencies'],c:2,e:'3NF eliminates transitive dependencies — non-key attributes should not depend on other non-key attributes.'},
+  {id:'q29',cat:'Indexes',dif:3,topic:'indexes',q:'A clustered index…',o:['Creates a separate lookup table','Stores rows in sorted order by the index key','Can only be applied to VARCHAR columns','Allows NULL values by default'],c:1,e:'A clustered index determines the physical order of data in a table. Only one clustered index per table.'},
+  {id:'q30',cat:'SQL Code',dif:2,topic:'clauses',q:'What will this query return?\nSELECT COUNT(*) FROM employees WHERE salary > 90000;',o:['Names of high earners','Number of employees earning over 90,000','Sum of salaries above 90,000','NULL'],c:1,e:'COUNT(*) returns the number of rows matching the WHERE condition — so employees with salary > 90000.'},
+];
+
+/* ─── QUIZ STATE ─── */
+let QZ={qs:[],i:0,score:0,cor:0,wrongTopics:[],skipped:0};
+
+/* Adaptive question selection */
+function buildQuizSet(count=12){
+  const seen=getSeenIds('quiz');
+  const li=getLevelInfo();
+  const xp=P.xp;
+  /* weight: 50% unseen, rest from lowest-scoring topics */
+  let pool=[...QS];
+  const unseen=pool.filter(q=>!seen.has(q.id));
+  const seenQ=pool.filter(q=>seen.has(q.id));
+  /* adaptive difficulty distribution */
+  let target=[3,5,4]; // [easy,med,hard] counts
+  if(xp<100)target=[6,4,2];
+  else if(xp<400)target=[3,6,3];
+  else target=[2,4,6];
+  function pickN(arr,n){const a=[...arr].sort(()=>Math.random()-.5);return a.slice(0,n);}
+  function byDif(arr,d){return arr.filter(q=>q.dif===d);}
+  let selected=[];
+  [1,2,3].forEach((d,i)=>{
+    const n=target[i];
+    const uD=byDif(unseen,d);
+    const sD=byDif(seenQ,d);
+    const from=[...uD,...sD];
+    selected=[...selected,...pickN(from,Math.min(n,from.length))];
+  });
+  // fill if short
+  if(selected.length<count){
+    const rest=pool.filter(q=>!selected.find(s=>s.id===q.id));
+    selected=[...selected,...pickN(rest,count-selected.length)];
+  }
+  return selected.slice(0,count).sort(()=>Math.random()-.5);
+}
+
+async function openQuiz(){
+  show('quiz');
+  /* Try to get AI-generated questions for variety */
+  let aiQs=[];
+  if(GK||GMK||MK){
+    const li=getLevelInfo();
+    const seen=getSeenIds('quiz');
+    const topics=['SELECT/WHERE/ORDER BY','JOINs','GROUP BY/Aggregates','Subqueries','Window Functions','Indexes','Normalization','Transactions/ACID','CTEs','NULL handling'];
+    const randTopics=topics.sort(()=>Math.random()-.5).slice(0,4).join(', ');
+    const pr=`You are an expert SQL quiz AI. Student level: "${li.label}" (${P.xp} XP).
+
+Generate 4 unique SQL multiple-choice questions on these topics: ${randTopics}.
+Mix difficulty: some beginner, some intermediate, 1-2 advanced.
+Base questions on REAL SQL interview patterns from LeetCode, HackerRank, StrataScratch, or Mode Analytics.
+Make questions clear, unambiguous, and educational.
+
+Return ONLY valid JSON array (no markdown):
+[{"id":"ai_1","cat":"<category>","dif":<1|2|3>,"topic":"<topic>","q":"<question text>","code":"<optional SQL code snippet or empty string>","o":["A","B","C","D"],"c":<correct index 0-3>,"e":"<explanation>"}]`;
+    try{
+      const res=await callAI(pr,1200);
+      if(Array.isArray(res)&&res.length>0){
+        aiQs=res.filter(q=>q.q&&Array.isArray(q.o)&&q.o.length===4&&typeof q.c==='number').slice(0,4);
+      }
+    }catch(e){console.warn('AI quiz gen fail',e);}
+  }
+
+  const staticQs=buildQuizSet(12-aiQs.length);
+  const allQs=[...aiQs,...staticQs].sort(()=>Math.random()-.5).slice(0,12);
+
+  QZ={qs:allQs,i:0,score:0,cor:0,wrongTopics:[],skipped:0};
+  document.getElementById('qTot').textContent=QZ.qs.length;
+  renderQ();
+}
+
+function renderQ(){
+  if(QZ.i>=QZ.qs.length){showQuizResults();return;}
+  const q=QZ.qs[QZ.i]; QZ._an=false;
+  document.getElementById('qCur').textContent=QZ.i+1;
+  document.getElementById('qSc').textContent=QZ.score+' pts';
+  document.getElementById('qPf').style.width=(QZ.i/QZ.qs.length*100)+'%';
+  const L=['A','B','C','D'];
+  const b=document.getElementById('qBody'); b.scrollTop=0;
+  const diffClass=['','q-diff-beginner','q-diff-intermediate','q-diff-advanced'][q.dif]||'q-diff-beginner';
+  const diffLabel=['','Beginner','Intermediate','Advanced'][q.dif]||'Beginner';
+  b.innerHTML=`
+    <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap">
+      <div class="q-category">📌 ${q.cat||'SQL'}</div>
+      <div class="q-difficulty ${diffClass}">${diffLabel}</div>
+    </div>
+    <div class="q-card">
+      <div class="q-num">Question ${QZ.i+1} of ${QZ.qs.length}</div>
+      <div class="q-text">${q.q}</div>
+      ${q.code?`<div class="q-code">${q.code}</div>`:''}
+    </div>
+    <div class="q-opts">${q.o.map((o,i)=>`
+      <button class="q-opt" id="qo${i}" onclick="answerQ(${i})">
+        <div class="opt-label">${L[i]}</div>
+        <div class="opt-text">${o}</div>
+      </button>`).join('')}
+    </div>
+    <div class="q-feedback" id="qfb"></div>
+    <button class="btn-next" id="qn" onclick="nextQ()">${QZ.i+1<QZ.qs.length?'Next Question →':'See Results 🏆'}</button>`;
+}
+
+function answerQ(idx){
+  if(QZ._an)return; QZ._an=true;
+  const q=QZ.qs[QZ.i];const ok=idx===q.c;const L=['A','B','C','D'];
+  for(let i=0;i<q.o.length;i++){
+    const el=document.getElementById('qo'+i);if(!el)continue;
+    el.setAttribute('disabled','');
+    if(i===q.c)el.classList.add('correct');
+    else if(i===idx&&!ok)el.classList.add('wrong');
+  }
+  if(ok){QZ.cor++;QZ.score+=100;document.getElementById('qSc').textContent=QZ.score+' pts';}
+  else{QZ.wrongTopics.push(q.topic||q.cat);}
+  /* update topic scores */
+  updateTopicScore(q.topic||q.cat,ok?100:0);
+  markSeen('quiz',q.id||q.q);
+  const fb=document.getElementById('qfb');
+  fb.className='q-feedback on '+(ok?'correct':'wrong');
+  fb.innerHTML=`<div class="fb-head ${ok?'c':'w'}">${ok?'✅ Correct!':'❌ Not quite'}</div>
+    <div class="fb-body">${q.e||''}</div>
+    ${!ok?`<div class="fb-correct">✔ Correct answer: ${L[q.c]}. ${q.o[q.c]}</div>`:''}`;
+  document.getElementById('qn').classList.add('on');
+  try{TG?.HapticFeedback?.impactOccurred(ok?'light':'heavy');}catch(e){}
+}
+function nextQ(){QZ.i++;renderQ();}
+
+/* ─── QUIZ RESULTS + SKILL ASSESSMENT ─── */
+async function showQuizResults(){
+  const acc=Math.round((QZ.cor/QZ.qs.length)*100);
+  const g=acc>=90?'S':acc>=80?'A':acc>=70?'B':acc>=55?'C':'D';
+  const tr={S:'🏆',A:'🥇',B:'🥈',C:'🥉',D:'😅'};
+  const tt={S:'SQL GRANDMASTER',A:'QUERY EXPERT',B:'SOLID DEVELOPER',C:'KEEP GOING',D:'NEEDS WORK'};
+  const gainXP=Math.round(QZ.score/10);
+  P.xp+=gainXP; P.sessions=(P.sessions||0)+1;
+  P.totalQuizScore=(P.totalQuizScore||0)+acc;
+  P.quizHistory=(P.quizHistory||[]);
+  P.quizHistory.push({score:acc,ts:Date.now(),correct:QZ.cor,total:QZ.qs.length});
+  saveP();
+
+  document.getElementById('qPf').style.width='100%';
+
+  /* Compute overall skill assessment */
+  const allScores=[...(P.hist||[]).map(h=>h.sc||0),...(P.quizHistory||[]).map(h=>h.score)];
+  const overallAvg=allScores.length?Math.round(allScores.reduce((a,b)=>a+b,0)/allScores.length):acc;
+  const li=getLevelInfo();
+
+  /* Determine dev level label */
+  function getDevLevel(xp,avg){
+    if(xp>=1200&&avg>=80)return{title:'Senior SQL Developer',emoji:'🏆',color:'var(--a4)',desc:'You demonstrate mastery of advanced SQL — window functions, CTEs, correlated subqueries, and performance tuning. You are qualified for senior data roles.'};
+    if(xp>=650&&avg>=70)return{title:'Mid-Level SQL Developer',emoji:'💎',color:'var(--a)',desc:'You have strong SQL fundamentals with good knowledge of aggregations, JOINs, and subqueries. Ready for mid-level data analyst or BI developer roles.'};
+    if(xp>=300&&avg>=60)return{title:'Junior SQL Developer',emoji:'🌟',color:'var(--a3)',desc:'You have solid working knowledge of SQL. Comfortable with SELECT, WHERE, GROUP BY, and basic JOINs. Ready for entry-level to junior developer roles.'};
+    if(xp>=100&&avg>=45)return{title:'SQL Associate',emoji:'📈',color:'var(--a5)',desc:'You are developing your SQL skills. You understand the basics and are growing towards junior-level competency.'};
+    return{title:'Entry Level / Beginner',emoji:'🌱',color:'var(--mu2)',desc:'You are at the beginning of your SQL journey. Focus on SELECT, WHERE, ORDER BY, and basic aggregates to build your foundation.'};
+  }
+  const dev=getDevLevel(P.xp,overallAvg);
+
+  /* Topic skill bars */
+  const topicMap={'joins':'JOINs','aggregates':'Aggregates','window':'Window Fns','subqueries':'Subqueries','normalization':'Normalization','transactions':'Transactions','indexes':'Indexes','select':'SELECT/WHERE','cte':'CTEs'};
+  const topicBarHTML=Object.entries(P.topicScores||{}).slice(0,5).map(([k,v])=>{
+    const label=topicMap[k]||k;const pct=Math.min(100,Math.round(v.total/v.count));
+    const col=pct>=80?'var(--a3)':pct>=55?'var(--a4)':'var(--a2)';
+    return `<div class="sa-bar-row"><div class="sa-bar-label">${label}</div><div class="sa-bar-track"><div class="sa-bar-fill" style="width:${pct}%;background:${col}"></div></div><span style="font-size:9px;color:var(--mu2);font-weight:600;min-width:28px;text-align:right">${pct}%</span></div>`;
+  }).join('');
+
+  const cm={S:'Outstanding! You\'re SQL interview-ready. 🎯',A:'Great job! Review edge cases and CTEs for perfection.',B:'Solid! Revisit ACID, normalization & window functions.',C:'Getting there — review RDBMS basics, GROUP BY and JOINs.',D:'Don\'t worry — start with SELECT basics and build up step by step!'};
+
+  document.getElementById('qBody').innerHTML=`
+    <div class="result-card on">
+      <span class="res-trophy">${tr[g]}</span>
+      <div class="res-grade">${g}</div>
+      <div class="res-title">${tt[g]}</div>
+      <div class="res-stats">
+        <div class="res-stat"><div class="res-val">${QZ.score}</div><div class="res-lbl">Score</div></div>
+        <div class="res-stat"><div class="res-val">${QZ.cor}/${QZ.qs.length}</div><div class="res-lbl">Correct</div></div>
+        <div class="res-stat"><div class="res-val">${acc}%</div><div class="res-lbl">Accuracy</div></div>
+      </div>
+      <div class="skill-assess">
+        <div class="sa-title">🧠 Skill Assessment</div>
+        <div class="sa-level">${dev.emoji} ${dev.title}</div>
+        <div class="sa-desc">${dev.desc}</div>
+        ${topicBarHTML?`<div class="sa-bars">${topicBarHTML}</div>`:''}
+      </div>
+      <div class="res-comment">${cm[g]}</div>
+      <button class="btn-tg" onclick="sendTGReport('${g}',${QZ.score},${QZ.cor},${QZ.qs.length},${acc})">📨 Send Full Report to Chat</button>
+      <button class="btn-again" onclick="openQuiz()">🔄 New Quiz</button>
+      <button class="btn-menu" onclick="goHome()">← Back to Menu</button>
+    </div>`;
+
+  try{TG?.HapticFeedback?.notificationOccurred('success');}catch(e){}
+  refreshHomeSkill();
+}
+
+/* ─── SEND FULL REPORT TO TELEGRAM ─── */
+function sendTGReport(grade,score,correct,total,acc){
+  const li=getLevelInfo();
+  const allScores=[...(P.hist||[]).map(h=>h.sc||0),...(P.quizHistory||[]).map(h=>h.score)];
+  const overallAvg=allScores.length?Math.round(allScores.reduce((a,b)=>a+b,0)/allScores.length):acc;
+  function getDevLevel(xp,avg){
+    if(xp>=1200&&avg>=80)return'Senior SQL Developer';
+    if(xp>=650&&avg>=70)return'Mid-Level SQL Developer';
+    if(xp>=300&&avg>=60)return'Junior SQL Developer';
+    if(xp>=100&&avg>=45)return'SQL Associate';
+    return'Entry Level / Beginner';
+  }
+  const devTitle=getDevLevel(P.xp,overallAvg);
+  const wrongTopics=[...new Set(QZ.wrongTopics)].slice(0,3).join(', ')||'None';
+  const topicLines=Object.entries(P.topicScores||{}).slice(0,5).map(([k,v])=>`  • ${k}: ${Math.min(100,Math.round(v.total/v.count))}%`).join('\n')||'  No topic data yet';
+  const reportData={
+    mode:'quiz_report',grade,score,correct,total,accuracy:acc,
+    xp:P.xp,tasksDone:P.done,sessions:P.sessions||1,
+    overallAvg,devLevel:devTitle,wrongTopics,topicScores:P.topicScores||{},
+    fullReport:true
+  };
+  try{
+    if(TG?.sendData)TG.sendData(JSON.stringify(reportData));
+    toast('📨 Report sent to Telegram!',3000);
+  }catch(e){
+    toast('⚠️ Could not send — try from Telegram',3000);
+  }
+}
+
+new ResizeObserver(()=>{
+  const vs=document.getElementById('vStage');
+  const fc=document.getElementById('fCanv');
+  if(vs&&fc){fc.style.width=vs.offsetWidth+'px';fc.style.height=vs.offsetHeight+'px';}
+}).observe(document.body);
+
+refreshHomeSkill();
+</script>
+</body>
+</html>
